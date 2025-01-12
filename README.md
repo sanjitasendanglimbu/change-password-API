@@ -1,5 +1,31 @@
 # Change Password API Documentation
 
+## Overview
+
+The Change Password API Plugin is a WordPress plugin that provides secure REST API endpoints for the following functionalities:
+
+- Generate JWT Tokens for authentication.
+- Retrieve user data securely.
+- Change user passwords.
+- Verify JWT Tokens.
+
+This plugin uses Firebase JWT for token management and adheres to best practices for security and authentication.
+
+---
+
+## Installation Steps
+
+1. **Install Composer** to include the Firebase JWT library:
+   - Run `composer install` in the plugin directory to install the required dependencies.
+
+2. **Upload the plugin folder** to the WordPress `wp-content/plugins` directory.
+
+3. **Activate the plugin** from the WordPress admin dashboard.
+
+---
+
+# Endpoints
+The plugin provides the following REST API endpoints:
 ## Generate a Token
 
 ### Steps:
@@ -136,3 +162,4 @@ Save the token for subsequent requests.
   "success": false,
   "message": "Token mismatch with stored token."
 }
+```
