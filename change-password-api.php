@@ -1,9 +1,9 @@
 <?php
 /**
- * Plugin Name: JWT Secure API
+ * Plugin Name: Change Password API
  * Description: Provides secure REST API endpoints for generating tokens, changing passwords, retrieving user data, and verifying tokens using JWT.
- * Version: 1.0
- * Author: Chimpvine 
+ * Version: 1.1
+ * Author: Chimpvine
  */
 
 if (!defined('ABSPATH')) {
@@ -11,20 +11,20 @@ if (!defined('ABSPATH')) {
 }
 
 // Include Firebase JWT library
-require_once __DIR__ . '/vendor/autoload.php'; // Ensure you run `composer require firebase/php-jwt`
+if (!file_exists(__DIR__ . '/vendor/autoload.php')) {
+    wp_die('Please run `composer install` to install required dependencies.');
+}
+require_once __DIR__ . '/vendor/autoload.php';
 
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
-use Firebase\JWT\ExpiredException;
-use Firebase\JWT\SignatureInvalidException;
 
 class JWT_Secure_API {
-
-    private $secret_key = ''; // Leave blank; will be generated dynamically
+    private $secret_key;
     private $algorithm = 'HS256';
 
     public function __construct() {
-        $this->secret_key = defined('JWT_SECRET_KEY') ? JWT_SECRET_KEY : $this->generate_secret_key();
+        $this->secret_key = $this->generate_secret_key();
 
         // Register REST API endpoints
         add_action('rest_api_init', [$this, 'register_routes']);
@@ -78,20 +78,13 @@ class JWT_Secure_API {
         $user = get_userdata($user_id);
         $payload = [
             'user_id' => $user_id,
-            'user_first_name' => $user->first_name,
-            'user_last_name' => $user->last_name,
-            'user_email' => $user->user_email,
-            'user_profile_image' => get_avatar_url($user_id),
+            'username' => $user->user_login,
+            'email' => $user->user_email,
             'iat' => time(),
             'exp' => time() + (60 * 60 * 24), // Token expires in 24 hours
         ];
 
-        $token = JWT::encode($payload, $this->secret_key, $this->algorithm);
-
-        // Store the token in user meta for later verification
-        update_user_meta($user_id, 'jwt_token', $token);
-
-        return $token;
+        return JWT::encode($payload, $this->secret_key, $this->algorithm);
     }
 
     /**
@@ -131,15 +124,9 @@ class JWT_Secure_API {
 
         try {
             $decoded = JWT::decode($token, new Key($this->secret_key, $this->algorithm));
-            $user_id = $decoded->user_id;
-
-            if (!get_userdata($user_id)) {
-                return new WP_Error('user_not_found', 'User not found.', ['status' => 404]);
-            }
-
-            return true;
+            return $decoded;
         } catch (Exception $e) {
-            return new WP_Error('invalid_token', 'Invalid or expired token.', ['status' => 401]);
+            return new WP_Error('invalid_token', $e->getMessage(), ['status' => 401]);
         }
     }
 
@@ -147,16 +134,12 @@ class JWT_Secure_API {
      * Get user data
      */
     public function get_user_data($request) {
-        $auth_header = $request->get_header('Authorization');
-        list($token) = sscanf($auth_header, 'Bearer %s');
-        $decoded = JWT::decode($token, new Key($this->secret_key, $this->algorithm));
-
-        $user_id = $decoded->user_id;
-        $user = get_userdata($user_id);
-
-        if (!$user) {
-            return new WP_Error('user_not_found', 'User not found.', ['status' => 404]);
+        $auth = $this->authenticate_user($request);
+        if (is_wp_error($auth)) {
+            return $auth;
         }
+
+        $user = get_userdata($auth->user_id);
 
         return [
             'user_id' => $user->ID,
@@ -172,32 +155,27 @@ class JWT_Secure_API {
      * Change user password
      */
     public function change_password($request) {
-        $parameters = $request->get_json_params();
-        $auth_header = $request->get_header('Authorization');
-
-        list($token) = sscanf($auth_header, 'Bearer %s');
-        $decoded = JWT::decode($token, new Key($this->secret_key, $this->algorithm));
-
-        $user_id = $decoded->user_id;
-
-        $current_password = $parameters['current_password'] ?? '';
-        $new_password = $parameters['new_password'] ?? '';
-
-        if (empty($current_password) || empty($new_password)) {
-            return new WP_Error('missing_fields', 'Both current and new passwords are required.', ['status' => 400]);
+        $auth = $this->authenticate_user($request);
+        if (is_wp_error($auth)) {
+            return $auth;
         }
 
-        $user = get_userdata($user_id);
-        if (!wp_check_password($current_password, $user->user_pass, $user->ID)) {
+        $params = $request->get_json_params();
+        $current_password = $params['current_password'] ?? '';
+        $new_password = $params['new_password'] ?? '';
+
+        if (!$current_password || !$new_password) {
+            return new WP_Error('missing_fields', 'Current and new passwords are required.', ['status' => 400]);
+        }
+
+        $user = get_userdata($auth->user_id);
+        if (!wp_check_password($current_password, $user->user_pass)) {
             return new WP_Error('incorrect_password', 'Current password is incorrect.', ['status' => 403]);
         }
 
         wp_set_password($new_password, $user->ID);
 
-        return [
-            'success' => true,
-            'message' => 'Password updated successfully.',
-        ];
+        return ['success' => true, 'message' => 'Password updated successfully.'];
     }
 
     /**
@@ -205,48 +183,11 @@ class JWT_Secure_API {
      */
     public function verify_token_endpoint($request) {
         $token = $request->get_param('token');
-        $verification = $this->verify_jwt_token($token);
-
-        return $verification;
-    }
-
-    /**
-     * Verify JWT Token
-     */
-    public function verify_jwt_token($token) {
         try {
             $decoded = JWT::decode($token, new Key($this->secret_key, $this->algorithm));
-
-            $user_id = $decoded->user_id;
-            $stored_token = get_user_meta($user_id, 'jwt_token', true);
-
-            if ($token === $stored_token) {
-                return [
-                    'success' => true,
-                    'user_id' => $decoded->user_id,
-                    'user_email' => get_userdata($user_id)->user_email,
-                ];
-            } else {
-                return [
-                    'success' => false,
-                    'message' => 'Token mismatch with stored token.',
-                ];
-            }
-        } catch (ExpiredException $e) {
-            return [
-                'success' => false,
-                'message' => 'Token expired: ' . $e->getMessage(),
-            ];
-        } catch (SignatureInvalidException $e) {
-            return [
-                'success' => false,
-                'message' => 'Token signature is invalid: ' . $e->getMessage(),
-            ];
+            return ['success' => true, 'data' => $decoded];
         } catch (Exception $e) {
-            return [
-                'success' => false,
-                'message' => 'Token verification failed: ' . $e->getMessage(),
-            ];
+            return new WP_Error('invalid_token', $e->getMessage(), ['status' => 401]);
         }
     }
 }

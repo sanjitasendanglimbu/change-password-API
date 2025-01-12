@@ -1,98 +1,137 @@
-# change-password-API
+# Change Password API Documentation
 
-# Generate a Token
-1. Create a new POST request.
-Enter the endpoint URL:
-https://yourdomain.com/wp-json/jwt/v1/generate-token
+## Generate a Token
 
-2. Go to the Body tab in Postman:
-Select raw and set the format to JSON.
-Enter the following JSON:
+### Steps:
+1. **Create a new POST request.**
+   - Endpoint URL:
+     ```
+     https://yourdomain.com/wp-json/jwt/v1/generate-token
+     ```
 
-{
-  "username": "your_username",
-  "password": "your_password"
-}
+2. **Go to the Body tab in Postman:**
+   - Select `raw` and set the format to `JSON`.
+   - Enter the following JSON:
+     ```json
+     {
+       "username": "your_username",
+       "password": "your_password"
+     }
+     ```
 
-3. Click Send.
+3. **Click Send.**
 
-Response Example:
-json
+### Response Example:
+```json
 {
   "token": "your_jwt_token_here",
   "expires_in": 86400
 }
+```
 
 Save the token for subsequent requests.
- 
-# Test the Protected Endpoint (/get-user-data)
-1. Create a new GET request.
-Enter the endpoint URL:
-https://yourdomain.com/wp-json/jwt/v1/get-user-data
 
-2. Go to the Headers tab and add the following:
-Key: Authorization
-Value: Bearer your_jwt_token_here
+---
 
-3. Click Send.
+## Test the Protected Endpoint (/get-user-data)
 
-Response Example:
+### Steps:
+1. **Create a new GET request.**
+   - Endpoint URL:
+     ```
+     https://yourdomain.com/wp-json/jwt/v1/get-user-data
+     ```
+
+2. **Go to the Headers tab and add the following:**
+   - Key: `Authorization`
+   - Value: `Bearer your_jwt_token_here`
+
+3. **Click Send.**
+
+### Response Example:
+```json
 {
   "user_id": 1,
   "username": "your_username",
-  "email": "your_email@example.com"
+  "email": "your_email@example.com",
+  "user_first_name": "John",
+  "user_last_name": "Doe",
+  "user_profile_image": "https://example.com/avatar.jpg"
 }
+```
 
+---
 
-# Change Password
-1. Create a new POST request.
-Enter the endpoint URL:
-https://yourdomain.com/wp-json/jwt/v1/change-password
+## Change Password
 
-2. Go to the Headers tab:
-Add the Authorization header as before:
-Bearer your_jwt_token_here
+### Steps:
+1. **Create a new POST request.**
+   - Endpoint URL:
+     ```
+     https://yourdomain.com/wp-json/jwt/v1/change-password
+     ```
 
-3. Go to the Body tab:
-Select raw and set the format to JSON.
-Enter the following JSON:
-{
-  "current_password": "your_current_password",
-  "new_password": "your_new_password"
-}
+2. **Go to the Headers tab:**
+   - Add the `Authorization` header as before:
+     - Key: `Authorization`
+     - Value: `Bearer your_jwt_token_here`
 
-4. Click Send.
-Response Example:
+3. **Go to the Body tab:**
+   - Select `raw` and set the format to `JSON`.
+   - Enter the following JSON:
+     ```json
+     {
+       "current_password": "your_current_password",
+       "new_password": "your_new_password"
+     }
+     ```
 
+4. **Click Send.**
+
+### Response Example:
+```json
 {
   "success": true,
   "message": "Password updated successfully."
 }
+```
 
-# Verify JWT Token
-1. Create a new POST request.
-Enter the endpoint URL for verifying a token:
-https://yourdomain.com/wp-json/jwt/v1/verify-token
+---
 
-2. Go to the Body tab:
-Select raw and set the format to JSON.
-Enter the following JSON:
-{
-  "token": "your_jwt_token_here"
-}
+## Verify JWT Token
 
-3. Click Send.
-Response Examples:
+### Steps:
+1. **Create a new POST request.**
+   - Endpoint URL for verifying a token:
+     ```
+     https://yourdomain.com/wp-json/jwt/v1/verify-token
+     ```
 
-Valid Token:
+2. **Go to the Body tab:**
+   - Select `raw` and set the format to `JSON`.
+   - Enter the following JSON:
+     ```json
+     {
+       "token": "your_jwt_token_here"
+     }
+     ```
 
+3. **Click Send.**
+
+### Response Examples:
+#### Valid Token:
+```json
 {
   "success": true,
   "user_id": 1,
-  "user_email": "your_email@example.com"
+  "user_email": "your_email@example.com",
+  "iat": 1700000000,
+  "exp": 1700086400
 }
+```
 
-Invalid Token:
+#### Invalid Token:
+```json
 {
   "success": false,
   "message": "Token mismatch with stored token."
